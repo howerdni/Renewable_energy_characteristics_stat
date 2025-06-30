@@ -1,0 +1,1 @@
+# Renewable_energy_characteristics_stat
