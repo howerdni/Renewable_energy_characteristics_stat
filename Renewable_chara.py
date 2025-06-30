@@ -216,9 +216,5 @@ if st.checkbox("显示调试信息", help="查看数据预览和分布，用于�
         st.write(df[time_col].dt.hour.value_counts().sort_index())
         st.write("**季节分布**：")
         st.write(df[time_col].dt.month.apply(get_season).value_counts())
-        st.write("**机组数量**：")
-        st.write(df.groupby(time_col)[unit_col].nunique().value_counts())rcentile}%概率出力率': '{:.4f}'}, na_rep='无有效数据'))
-        except Exception as e:
-            st.error(f"分析过程中发生错误: {str(e)}")
-    else:
-        st.error("请确保已上传文件、选择所有列、输入有效容量！")
+        st.write("**每个时间点的机组数量**：")
+        st.write(df.groupby(time_col)[unit_col].nunique().value_counts())
