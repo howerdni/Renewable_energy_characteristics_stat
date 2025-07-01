@@ -79,7 +79,8 @@ def find_bus_sections(lines: list) -> list:
     sections = []
     for i, line in enumerate(lines):
         line_stripped = line.strip()
-        if any(line_stripped.endswith(ending) or line_stripped == ending for ending in bus_endings):
+        # Check if line ends with a bus ending or contains it (allowing for trailing data)
+        if any(ending in line_stripped[-10:] for ending in bus_endings):
             sections.append(i)
     return sections
 
@@ -105,31 +106,38 @@ def parse_pfo_data(lines: list) -> list:
         actual_voltage = extract_actual_voltage(line)
         unallocated_q = None
 
-        # Check subsequent lines for unallocated reactive power
-        j = i + 1
-        while j < len(lines):
-            next_line = lines[j].strip()
-            if '未安排无功' in next_line:
+        # Check the current and subsequent lines for unallocated reactive power
+        for j in range(i, min(i + 10, len(lines))):  # Limit scan to avoid excessive looping
+            current_line = lines[j].strip()
+            if '未安排无功' in current_line:
                 try:
-                    unallocated_q_str = next_line.split('未安排无功')[0].strip()
-                    unallocated_q = float(unallocated_q_str)
+                    # Extract the number before "未安排无功" using regex to handle negative numbers and decimals
+                    match = re.search(r'([-]?\d+\.\d+|\d+\.\d+)\s*未安排无功', current_line)
+                    if match:
+                        unallocated_q = float(match.group(1))
+                        st.session_state.logs.append(f"[DEBUG] Found unallocated reactive power for {bus_name}: {unallocated_q}")
+                    else:
+                        st.session_state.logs.append(f"[DEBUG] Failed to parse unallocated reactive power in line: {current_line}")
                     break
-                except (ValueError, IndexError):
+                except (ValueError, IndexError) as e:
+                    st.session_state.logs.append(f"[DEBUG] Error parsing unallocated reactive power for {bus_name}: {e}")
                     break
             # Stop if we hit another bus section
-            if any(next_line.endswith(ending) or next_line == ending for ending in ['B', 'BQ', 'BE', 'BD', 'BA', 'BS', 'BM', '-PQ']):
-                break
-            j += 1
+            if any(current_line.endswith(ending) or ending in current_line[-10:] for ending in ['B', 'BQ', 'BE', 'BD', 'BA', 'BS', 'BM', '-PQ']):
+                if j != i:  # Don't break on the current bus line
+                    break
 
         try:
             rated_voltage_float = float(rated_voltage)
             actual_voltage_float = float(actual_voltage) if actual_voltage else None
         except (ValueError, TypeError):
+            st.session_state.logs.append(f"[DEBUG] Invalid voltage for {bus_name}: rated={rated_voltage}, actual={actual_voltage}")
             continue
 
         if actual_voltage_float is not None:
             record = PowerFlowRecord(bus_name, rated_voltage, actual_voltage, dist, owner, unallocated_q)
             records.append(record)
+            st.session_state.logs.append(f"[DEBUG] Added record for {bus_name}, unallocated_q={unallocated_q}")
 
     return records
 
